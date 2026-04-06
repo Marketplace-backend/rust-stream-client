@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream - Video Player</title>
+
+    <!-- Plyr CSS for premium UI -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
+    <style>
+        :root {
+            --primary: #8a2be2;
+            --secondary: #ff007f;
+            --bg-color: #0d0d12;
+            --container-bg: #1a1a24;
+            --text-main: #f5f5f7;
+            --text-muted: #a0a0ab;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            
+            /* Plyr Customization */
+            --plyr-color-main: var(--primary);
+            --plyr-video-control-background-hover: var(--primary);
+            --plyr-menu-background: rgba(26, 26, 36, 0.95);
+            --plyr-menu-color: var(--text-main);
+            --plyr-menu-border-color: rgba(255,255,255,0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(138, 43, 226, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(255, 0, 127, 0.1), transparent 25%);
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 1100px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.05em;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .player-wrapper {
+            position: relative;
+            background: var(--container-bg);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .player-wrapper:hover {
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.6),
+                        0 0 40px rgba(138, 43, 226, 0.15);
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16 / 9;
+            background-color: #000;
+            border-radius: 20px 20px 0 0; /* flat bottom for the selector bar */
+        }
+        
+        .selector-controls {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: rgba(13, 13, 18, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            gap: 1rem;
+        }
+        
+        .selector-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .selector-group label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        
+        .selector-controls select {
+            background: var(--container-bg);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .selector-controls select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2);
+        }
+        
+        .now-playing {
+            margin-left: auto;
+            font-size: 0.9rem;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+            color: var(--primary);
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(138, 43, 226, 0.2);
+            border-top: 5px solid var(--secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #player-container.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h1 id="video-title">Loading Stream...</h1>
+        <p class="subtitle" id="video-description">Fething details from backend API</p>
+    </header>
+
+    <div class="player-wrapper">
+        <div id="loader" class="loading-container">
+            <div class="spinner"></div>
+        </div>
+        
+        <div id="player-container" class="hidden">
+            <!-- Video Element -->
+            <video id="player" controls crossorigin playsinline></video>
+            
+            <!-- Series Navigation Controls -->
+            <div class="selector-controls" id="series-controls">
+                <div class="selector-group">
+                    <label for="season-select">Season</label>
+                    <select id="season-select"></select>
+                </div>
+                
+                <div class="selector-group">
+                    <label for="episode-select">Episode</label>
+                    <select id="episode-select"></select>
+                </div>
+                
+                <div class="now-playing" id="now-playing">
+                    <!-- Title of the selected episode will appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Powered by Rust (Axum API), Plyr, and Hls.js
+    </div>
+</div>
+
+<!-- Hls.js and Plyr for robust adaptive streaming -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let currentSeasonsData = [];
+        let hlsInstance = null;
+        let plyrInstance = null;
+        
+        // DOM Elements
+        const seasonSelect = document.getElementById('season-select');
+        const episodeSelect = document.getElementById('episode-select');
+        const nowPlayingText = document.getElementById('now-playing');
+        
+        // 1. Fetch Series Metadata from API
+        const seriesId = 'series_123';
+        fetch(`/api/video/${seriesId}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to fetch video data");
+                return res.json();
+            })
+            .then(data => {
+                console.log("Fetched API Data:", data);
+                
+                // Set Global Data
+                currentSeasonsData = data.seasons;
+                
+                // 2. Update UI DOM Elements
+                document.getElementById('video-title').textContent = data.title || "StreamX Pro Series";
+                document.getElementById('video-description').textContent = data.description || "Video metadata initialized.";
+                
+                // Hide loader, show player
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('player-container').classList.remove('hidden');
+                
+                // 3. Build UI Selectors if data exists
+                if(currentSeasonsData.length > 0) {
+                    populateSeasonDropdown();
+                    
+                    // Trigger initial load for Season 1, Episode 1
+                    updateEpisodeDropdown(currentSeasonsData[0]);
+                    const firstEpisode = currentSeasonsData[0].episodes[0];
+                    playEpisode(firstEpisode);
+                } else {
+                    document.getElementById('series-controls').style.display = 'none';
+                    document.getElementById('video-description').textContent = "No episodes found for this series.";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('video-title').textContent = "Error Loading Data";
+                document.getElementById('video-description').textContent = "Could not fetch stream URL from backend API.";
+                document.getElementById('loader').innerHTML = `<p style="color:var(--secondary)">Backend API unreachable or offline.</p>`;
+            });
+
+        // --- Selectors Logic ---
+        
+        function populateSeasonDropdown() {
+            seasonSelect.innerHTML = '';
+            currentSeasonsData.forEach((season, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = `Season ${season.season_num}`;
+                seasonSelect.appendChild(opt);
+            });
+            
+            seasonSelect.addEventListener('change', (e) => {
+                const selectedSeasonIndex = e.target.value;
+                const season = currentSeasonsData[selectedSeasonIndex];
+                updateEpisodeDropdown(season);
+                
+                // Auto-play first episode of the newly selected season
+                const firstEp = season.episodes[0];
+                playEpisode(firstEp);
+            });
+        }
+        
+        function updateEpisodeDropdown(season) {
+            episodeSelect.innerHTML = '';
+            season.episodes.forEach((ep, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.dataset.seasonIndex = currentSeasonsData.indexOf(season);
+                opt.textContent = `Ep ${ep.episode_num} - ${ep.title}`;
+                episodeSelect.appendChild(opt);
+            });
+            
+            // Remove old listener, add new one cleanly
+            episodeSelect.replaceWith(episodeSelect.cloneNode(true));
+            const newEpisodeSelect = document.getElementById('episode-select');
+            
+            newEpisodeSelect.addEventListener('change', (e) => {
+                const epIndex = e.target.value;
+                const seasonIndex = newEpisodeSelect.options[newEpisodeSelect.selectedIndex].dataset.seasonIndex;
+                const selectedEpisode = currentSeasonsData[seasonIndex].episodes[epIndex];
+                playEpisode(selectedEpisode);
+            });
+        }
+
+        function playEpisode(episode) {
+            nowPlayingText.textContent = `Playing: ${episode.title}`;
+            initPlayer(episode.stream_url);
+        }
+
+        // --- Player Core Logic ---
+        
+        function initPlayer(sourceUrl) {
+            const video = document.getElementById('player');
+            
+            // 1. Setup Hls first (or clean it up if already exists)
+            if (hlsInstance) {
+                hlsInstance.destroy();
+            }
+
+            if (window.Hls && Hls.isSupported()) {
+                hlsInstance = new Hls({ enableWorker: true });
+                hlsInstance.loadSource(sourceUrl);
+
+                // Wait for manifest to be parsed to get qualities
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                    const availableQualities = hlsInstance.levels.map((l) => l.height).reverse();
+                    availableQualities.unshift(0); // Auto
+
+                    const plyrOptions = {
+                        controls: [
+                            'play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 
+                            'settings', 'pip', 'airplay', 'fullscreen'
+                        ],
+                        settings: ['quality', 'speed'],
+                        autoplay: true,
+                        quality: {
+                            default: 0,
+                            options: availableQualities,
+                            forced: true,
+                            onChange: (newQuality) => {
+                                if (newQuality === 0) {
+                                    hlsInstance.currentLevel = -1; // Auto
+                                } else {
+                                    hlsInstance.levels.forEach((level, index) => {
+                                        if (level.height === newQuality) {
+                                            hlsInstance.currentLevel = index;
+                                        }
+                                    });
+                                }
+                            }
+                        },
+                        i18n: { qualityLabel: { 0: 'Auto' } }
+                    };
+
+                    // Initialize Plyr if not already done, or update it
+                    if (!plyrInstance) {
+                        plyrInstance = new Plyr(video, plyrOptions);
+                    } else {
+                        // For episode change, we need to update Plyr's quality options
+                        // Re-setting plyr.quality is often not enough to rebuild the menu
+                        // The cleanest way in Plyr 3.x is often to set options if the instance exists
+                        plyrInstance.setOptions(plyrOptions);
+                    }
+                    
+                    video.play().catch(e => console.log("Autoplay blocked:", e));
+                });
+
+                hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        console.error('HLS error:', data);
+                    }
+                });
+
+                hlsInstance.attachMedia(video);
+                
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS fallback (mostly Safari)
+                video.src = sourceUrl;
+                if (!plyrInstance) {
+                    plyrInstance = new Plyr(video, {
+                        settings: ['speed'], // Quality menu typically doesn't work well with native HLS Safari
+                        autoplay: true
+                    });
+                }
+                video.play().catch(e => console.log("Autoplay blocked:", e));
+            }
+        }
+
+    });
+</script>
+</body>
+</html>
